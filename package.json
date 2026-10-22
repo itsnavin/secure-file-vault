@@ -8,7 +8,7 @@
   "scripts": {
     "dev": "node tools/serve.mjs",
     "build": "node tools/build.mjs",
-    "test": "node --test tests/crypto.test.mjs",
+    "test": "node --test tests/crypto.test.mjs tests/guide.test.mjs",
     "test:browser": "playwright test",
     "check": "npm run test && npm run build && npm run test:browser"
   },

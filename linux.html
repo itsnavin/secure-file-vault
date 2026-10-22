@@ -1,0 +1,148 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <meta name="description" content="Beginner Linux OpenSSL file encryption guide: commands, every argument explained, and the important difference between unauthenticated CBC and File Vault's authenticated SFV format.">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self'; font-src 'none'; connect-src 'none'; worker-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'; frame-src 'none'; manifest-src 'none'">
+  <meta name="referrer" content="no-referrer">
+  <title>Linux / OpenSSL guide — File Vault</title>
+  <link rel="icon" href="./favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="./src/styles.css">
+  <link rel="stylesheet" href="./src/guide.css">
+  <script type="module" src="./src/guide.js"></script>
+</head>
+<body>
+  <a class="skip" href="#guide">Skip to Linux guide</a>
+  <header class="guide-header">
+    <a class="brand" href="./" aria-label="File Vault home"><span class="brand-icon" aria-hidden="true">▣</span> file vault.</a>
+    <a href="./">← Back to browser vault</a>
+  </header>
+  <main id="guide" class="guide">
+    <div class="intro"><span class="eyebrow">LEARN · EXTERNAL TERMINAL WORKFLOW</span><h1>From file to ciphertext.</h1><p>A beginner’s guide to Linux, OpenSSL, and what encryption can—and cannot—promise.</p></div>
+    <nav aria-label="Guide contents" class="guide-nav">
+      <a href="#browser-flow">Browser encryption</a><a href="#linux-start">Linux setup</a><a href="#commands">Commands</a><a href="#arguments">Every argument</a><a href="#failures">Failures &amp; safety</a>
+    </nav>
+    <aside class="guide-warning" aria-labelledby="compatibility-title">
+      <h2 id="compatibility-title">Two different formats. Not interchangeable.</h2>
+      <p><strong>You cannot decrypt this site’s <code>.sfv</code> downloads using <code>openssl enc</code>. This site cannot decrypt OpenSSL <code>enc</code> output either.</strong> Renaming an extension does not convert a format.</p>
+      <p>The browser vault remains the preferred authenticated workflow here: AES-GCM with an authenticated SFV v1 header. The terminal example below is <strong>only for learning / existing OpenSSL compatibility</strong>. <code>openssl enc</code> does not support authenticated AES-GCM.</p>
+      <p><strong>AES-CBC below has NO integrity or authentication protection.</strong> An attacker can modify ciphertext and cause changed plaintext, sometimes with no error. A successful decryption does not verify integrity, the password, or who sent the file. Do not treat it as equivalent to the browser vault.</p>
+    </aside>
+
+    <section id="browser-flow" class="guide-section">
+      <span class="eyebrow">01 / UNDERSTAND THE BROWSER VAULT</span>
+      <h2>What happens to your file here?</h2>
+      <ol class="flow" aria-label="Browser encryption steps">
+        <li><strong>Plaintext + exact passphrase</strong><span>Your file bytes or UTF-8 text. Passphrase spaces, case and Unicode matter.</span></li>
+        <li><strong>Fresh salt → password KDF → key</strong><span>PBKDF2-HMAC-SHA-256, 600,000 iterations, random 16-byte salt. PBKDF2 is not memory-hard.</span></li>
+        <li><strong>AES-GCM + fresh nonce + header</strong><span>256-bit key by default (128-bit optional), random 12-byte nonce, full header authenticated as AAD.</span></li>
+        <li><strong>Ciphertext + 128-bit tag → .sfv</strong><span>The header stores the version, cipher, KDF settings, salt and nonce; filename metadata is encrypted. Download explicitly.</span></li>
+      </ol>
+      <h3>Going the other way</h3>
+      <p><strong>SFV header → validate bounds → same passphrase + stored salt → same key → authenticate/decrypt → plaintext.</strong> The app reads cipher and KDF metadata for you. The tag covers ciphertext and the header; no plaintext is released until authentication succeeds. Wrong passphrases or changed ciphertext/tag cause a generic authentication failure. Unsupported/malformed headers are rejected before key derivation.</p>
+      <p>The salt and nonce are not passwords and need not be secret. They do not let someone recover a strong passphrase, but attackers can attempt offline guesses. Authentication is not a digital signature or proof of identity. See the <a href="https://github.com/itsnavin/secure-file-vault#format-sfv-v1-sfv" target="_blank" rel="noreferrer">exact SFV format</a> and <a href="./">return to the browser vault</a> to create or open <code>.sfv</code> files.</p>
+    </section>
+
+    <section id="linux-start" class="guide-section">
+      <span class="eyebrow">02 / GET READY IN LINUX</span>
+      <h2>Start with a disposable practice file.</h2>
+      <p>These are commands for your own Linux terminal—not JavaScript, not something this page runs. Only decrypt files you own or are authorized to access. Use a maintained OpenSSL 3.x package from your distribution; ask its package manager/admin if OpenSSL is missing. First inspect your installed version and supported flags:</p>
+      <div class="command"><div class="command-heading"><h3>Check your tools</h3><button data-copy="version-command" type="button">Copy checks</button></div><pre tabindex="0" aria-label="Check OpenSSL version and help"><code id="version-command">openssl version
+openssl enc -help</code></pre></div>
+      <p>Core flags below are documented in OpenSSL 3.0 and 3.5. The automated Linux command test reports the exact version it runs. The examples deliberately use the common default salted format (8-byte salt in these versions), not the newer <code>-saltlen</code> flag, which OpenSSL 3.0 does not support. Do not assume all releases, vendor builds or provider configurations have identical capabilities. Using AES or PBKDF2 alone does not establish FIPS validation/compliance.</p>
+      <div class="command"><div class="command-heading"><h3>Create an isolated workspace</h3><button data-copy="setup-command" type="button">Copy setup</button></div><pre tabindex="0" aria-label="Create private practice directory"><code id="setup-command">umask 077
+workdir=$(mktemp -d "${TMPDIR:-/tmp}/file-vault-demo.XXXXXXXX") &amp;&amp; cd "$workdir"
+pwd</code></pre></div>
+      <p><code>umask 077</code> restricts permissions on <em>new</em> files to their owner (normally 600 for files, 700 for directories). It does not fix permissions of existing files. <code>mktemp -d</code> creates a new private directory; <code>$(...)</code> captures its path. <code>&amp;&amp;</code> changes directory only if creation succeeds. <code>pwd</code> prints where you are. <strong>If setup reports an error, stop. Run subsequent blocks only inside the new directory.</strong> This is a private workspace, not a guarantee of secure storage; temporary directories may be cleaned automatically.</p>
+      <div class="command"><div class="command-heading"><h3>Make public test content</h3><button data-copy="sample-command" type="button">Copy sample</button></div><pre tabindex="0" aria-label="Create public synthetic practice file"><code id="sample-command">printf '%s\n' 'PUBLIC practice file. Not a real secret.' &gt; './original.bin'</code></pre></div>
+      <p>This is intentionally nonsecret text. <code>printf</code> writes the literal sample and a newline; <code>&gt;</code> writes it to a file and <strong>overwrites an existing file</strong>. The <code>.bin</code> name is just a name; encryption works on bytes of any file type. For your own file, work on a copy in a private directory instead, and keep the original safe. Never put sensitive text into a literal shell command: shell history and process arguments can expose it.</p>
+    </section>
+
+    <section id="commands" class="guide-section">
+      <span class="eyebrow">03 / OPENSSL ENC · LEARNING ONLY</span>
+      <h2>Encrypt and decrypt a file in the terminal.</h2>
+      <p class="guide-warning compact"><strong>No authentication:</strong> these AES-256-CBC examples hide content but do not protect it from tampering. Use the authenticated browser vault or an established authenticated file-encryption tool for important data—not bare CBC. OpenSSL CMS is a different, certificate/key-based workflow; this beginner guide does not claim a tested authenticated CMS recipe.</p>
+      <p>Use a strong, unique passphrase. The commands deliberately omit <code>-pass</code>: OpenSSL prompts interactively, with confirmation on encryption and no terminal echo. Do not place a real password in command arguments, environment variables or shell history. The passphrase is not embedded in the file. <strong>Lost passphrases cannot be recovered.</strong></p>
+      <p><strong>Before every command, ensure its output path does not already exist.</strong> OpenSSL <code>-out</code> can truncate/overwrite a file, even if decryption later fails. The examples use three distinct names and never delete the original. Do not point input and output at the same file.</p>
+      <div class="command"><div class="command-heading"><h3>Encrypt → original.bin.enc</h3><button data-copy="encrypt-command" type="button">Copy encryption</button></div><pre tabindex="0" aria-label="OpenSSL CBC file encryption command"><code id="encrypt-command">openssl enc -aes-256-cbc -e -pbkdf2 -iter 600000 -md sha256 -salt \
+  -in './original.bin' -out './original.bin.enc'</code></pre></div>
+      <p>At the two prompts, type the same passphrase. The output is binary by default: a salted OpenSSL header and AES-CBC ciphertext with PKCS#7 padding. The <code>.enc</code> extension is a convention, not stored algorithm metadata or proof of security.</p>
+      <div class="command"><div class="command-heading"><h3>Decrypt → recovered.bin</h3><button data-copy="decrypt-command" type="button">Copy decryption</button></div><pre tabindex="0" aria-label="OpenSSL CBC file decryption command"><code id="decrypt-command">openssl enc -aes-256-cbc -d -pbkdf2 -iter 600000 -md sha256 -salt \
+  -in './original.bin.enc' -out './recovered.bin'</code></pre></div>
+      <p>Enter the exact original passphrase at the prompt. Use the same cipher, digest, PBKDF2 settings, salt convention and encoding. A zero exit status means the operation completed and padding was accepted, <strong>not that the result is authentic</strong>.</p>
+      <div class="command"><div class="command-heading"><h3>Check this practice round trip</h3><button data-copy="compare-command" type="button">Copy comparison</button></div><pre tabindex="0" aria-label="Compare original and recovered practice bytes"><code id="compare-command">cmp './original.bin' './recovered.bin' &amp;&amp; printf '%s\n' 'Practice files match byte for byte.'</code></pre></div>
+      <p><code>cmp</code> compares the two local files; it is normally silent if they match. <code>&amp;&amp;</code> prints the success message only on a match. This tests a round trip while you still have a trusted original. It does not add authentication to CBC or establish trust in files received later.</p>
+      <h3>What OpenSSL does in this example</h3>
+      <ol class="flow terminal-flow" aria-label="OpenSSL CBC encryption and decryption steps">
+        <li><strong>File bytes + prompted passphrase</strong><span>No text conversion. The filename itself is not encrypted/stored by enc.</span></li>
+        <li><strong>Random salt → PBKDF2-HMAC-SHA-256</strong><span>600,000 iterations derive the 32-byte AES key and 16-byte CBC IV from the password and salt.</span></li>
+        <li><strong>PKCS#7 padding → AES-256-CBC</strong><span>Whole blocks are encrypted. No authentication tag is produced.</span></li>
+        <li><strong>Salted header + ciphertext → .enc</strong><span>Decrypt reads the salt, derives the same key/IV, decrypts, then checks padding. Changed data can still pass.</span></li>
+      </ol>
+      <p>Unlike SFV, a normal <code>enc</code> salted header is not a self-describing authenticated container: keep the exact OpenSSL version, cipher, KDF, iteration count, digest, salt length and whether Base64 was used with your backup, separately from the passphrase. Older files may use different derivation defaults. Do not guess parameters or downgrade to legacy algorithms; consult the creator’s recorded settings. Do not add manual <code>-S</code> salts or key/IV overrides: explicit-salt behavior changed in OpenSSL 3.0.</p>
+    </section>
+
+    <section id="arguments" class="guide-section">
+      <span class="eyebrow">04 / READ THE SYNTAX</span>
+      <h2>Every argument, explained.</h2>
+      <p>General shape: <code>openssl enc -CIPHER [-e | -d] [KDF options] -in INPUT -out OUTPUT</code>. Brackets and uppercase placeholders here are notation, not characters to type. <code>|</code> in this notation means “choose one”; in a real shell command it pipes output into the next program.</p>
+      <div class="table-scroll" tabindex="0" role="region" aria-label="OpenSSL command arguments"><table>
+        <thead><tr><th scope="col">Argument</th><th scope="col">What it means in these commands</th></tr></thead>
+        <tbody>
+          <tr><th scope="row"><code>openssl</code></th><td>Runs the OpenSSL command-line program installed on your machine.</td></tr>
+          <tr><th scope="row"><code>enc</code></th><td>Selects its symmetric encryption/decryption subcommand. It is not the SFV format reader and does not support GCM or CCM authenticated modes.</td></tr>
+          <tr><th scope="row"><code>-aes-256-cbc</code></th><td>Selects AES with a 256-bit key in CBC mode. It provides no integrity/authentication by itself. It is a flag, not <code>-cipher aes-256-cbc</code>.</td></tr>
+          <tr><th scope="row"><code>-e</code></th><td>Encrypt. This is enc’s default, made explicit for clarity.</td></tr>
+          <tr><th scope="row"><code>-d</code></th><td>Decrypt instead of encrypt. It does not authenticate the recovered bytes.</td></tr>
+          <tr><th scope="row"><code>-pbkdf2</code></th><td>Use PBKDF2 password-based derivation rather than enc’s older default derivation. With <code>-md sha256</code> this uses HMAC-SHA-256. Without an explicit <code>-iter</code>, documented defaults use only 10,000 iterations.</td></tr>
+          <tr><th scope="row"><code>-iter 600000</code></th><td>Set 600,000 derivation iterations. Also enables PBKDF2; we include both flags for clarity. Repeat exactly on decrypt. This follows OWASP’s PBKDF2-SHA-256 minimum reviewed 2026-10-22, not a universal forever setting; it neither makes PBKDF2 memory-hard nor authenticates CBC.</td></tr>
+          <tr><th scope="row"><code>-md sha256</code></th><td>Set SHA-256 as the derivation digest (HMAC-SHA-256 with PBKDF2). This is not a file integrity hash or authentication check. Repeat it on decrypt.</td></tr>
+          <tr><th scope="row"><code>-salt</code></th><td>Use a random salt on encryption (already the default); it is stored with ciphertext and read on decryption. A salt prevents identical password derivations across files, not password guessing itself. It is not a secret or an authentication tag.</td></tr>
+          <tr><th scope="row"><code>-in '…'</code></th><td>Read bytes from the named input file. Without it, enc reads standard input. Quotes belong to the shell, not the filename.</td></tr>
+          <tr><th scope="row"><code>-out '…'</code></th><td>Write bytes to this separate output file, potentially overwriting it. Without it, enc writes standard output. Keep recovered plaintext private; do not pipe it straight into an interpreter or application.</td></tr>
+          <tr><th scope="row"><code>-a</code> (optional)</th><td>Base64-encode after encryption; Base64-decode before decryption. Use on both sides. It is encoding, not extra encryption; output grows by about one third plus line breaks/header/padding overhead. Normal output includes line breaks.</td></tr>
+        </tbody>
+      </table></div>
+      <h3>Shell punctuation is part of the explanation, too.</h3>
+      <p>Single quotes keep a path with spaces literal: <code>'./my document.pdf'</code>. Replace the whole quoted filename with your own path; <code>./</code> denotes the current directory and avoids a leading dash being mistaken for an option. A literal apostrophe needs different shell quoting; do not paste an untrusted filename as shell syntax. Double quotes in <code>"$workdir"</code> expand the variable while keeping its path one argument. A backslash at the very end of a line joins it to the next line: <strong>no spaces after that backslash</strong>. You can instead put the entire command on one line without the backslash.</p>
+      <details class="guide-extra"><summary>Optional Base64 example (still unauthenticated CBC)</summary>
+        <p>Use different, previously nonexistent output paths. The only cryptographic settings are unchanged; <code>-a</code> adds/removes printable Base64 encoding. Keep the normal line breaks. A Base64 file is not an SFV vault.</p>
+        <div class="command"><div class="command-heading"><h3>Encrypt with Base64 output</h3><button data-copy="base64-encrypt-command" type="button">Copy Base64 encryption</button></div><pre tabindex="0" aria-label="OpenSSL CBC encryption with Base64"><code id="base64-encrypt-command">openssl enc -aes-256-cbc -e -pbkdf2 -iter 600000 -md sha256 -salt -a \
+  -in './original.bin' -out './original.bin.enc.b64'</code></pre></div>
+        <div class="command"><div class="command-heading"><h3>Decrypt Base64 input</h3><button data-copy="base64-decrypt-command" type="button">Copy Base64 decryption</button></div><pre tabindex="0" aria-label="OpenSSL CBC decryption with Base64"><code id="base64-decrypt-command">openssl enc -aes-256-cbc -d -pbkdf2 -iter 600000 -md sha256 -salt -a \
+  -in './original.bin.enc.b64' -out './recovered-base64.bin'</code></pre></div>
+      </details>
+      <p>To encrypt real text, save it to a private file using a trusted local editor, then encrypt that file. The public <code>printf</code> practice sample above is not a pattern for entering secrets. No secret-bearing pipe examples, passwords in arguments, obsolete ciphers, or disabled padding are needed.</p>
+    </section>
+
+    <section id="failures" class="guide-section">
+      <span class="eyebrow">05 / ERRORS, BACKUPS &amp; TRUST</span>
+      <h2>A decrypted file is not automatically a trustworthy file.</h2>
+      <dl class="failure-list">
+        <dt>“bad decrypt” / wrong passphrase</dt><dd>Usually wrong password/settings, truncated data, or invalid padding. OpenSSL may already have written partial or garbage plaintext before reporting failure. <strong>Do not use that output.</strong> A wrong password can also pass padding by chance; neither absence nor presence of this error is a reliable authenticity test.</dd>
+        <dt>Modified ciphertext, but no error</dt><dd>CBC is malleable: modifying a non-final ciphertext block can corrupt one plaintext block and deliberately flip bits in the next while leaving final padding valid. Our Linux regression test demonstrates an exit status of zero with changed plaintext. This is expected behavior, not proof that the file was safe.</dd>
+        <dt>“bad magic number” / “wrong final block length”</dt><dd>Check the source format, complete file transfer, recorded parameters and whether Base64 was used. These messages vary by version and do not reliably diagnose a particular cause. A browser <code>.sfv</code> file is simply the wrong format for enc.</dd>
+        <dt>Unknown option / missing algorithm</dt><dd>Read <code>openssl version</code> and <code>openssl enc -help</code>; check vendor documentation and provider configuration. Do not “fix” it with an older cipher or weaker KDF.</dd>
+        <dt>Permission denied / output exists</dt><dd>Check your directory and filenames without broadening permissions. Stop if a desired output already exists; choose a new name. Do not use root privileges just to encrypt your own file.</dd>
+      </dl>
+      <p><strong>Keep the original until a trusted recovery test and backup succeed.</strong> We never recommend automatic deletion. Save encrypted output and its settings to storage you control; do not rely on the temporary practice directory. Move/backup deliberately, verify your copy, keep the passphrase separately, and restrict access to recovered plaintext. Moving to shared or non-POSIX filesystems may change permissions. Encryption does not erase originals, temporary plaintext, swap, shell history, editor backups, or saved downloads.</p>
+      <p>For important files, prefer an established authenticated file-encryption tool/format, or the browser’s authenticated SFV workflow within its documented limits. Do not build your own ad-hoc “CBC plus hash” scheme. This guide does not make the application externally audited; a compromised origin/browser/extension/device can still observe secrets. There is no browser execution of these terminal commands and no automatic clipboard use: Copy buttons copy only the displayed public example you choose.</p>
+      <div class="guide-sources">
+        <h3>Official references</h3>
+        <p>Reviewed 2026-10-22. Match the documentation to your installed version.</p>
+        <ul>
+          <li><a href="https://docs.openssl.org/3.0/man1/openssl-enc/" target="_blank" rel="noreferrer">OpenSSL 3.0 enc: syntax, defaults and lack of authenticated modes</a></li>
+          <li><a href="https://docs.openssl.org/3.5/man1/openssl-enc/" target="_blank" rel="noreferrer">OpenSSL 3.5 enc: syntax and salt-length behavior</a></li>
+          <li><a href="https://docs.openssl.org/3.0/man1/openssl-passphrase-options/" target="_blank" rel="noreferrer">OpenSSL passphrase sources and exposure warnings</a></li>
+          <li><a href="https://cheatsheetseries.owasp.org/cheatsheets/Password_Storage_Cheat_Sheet.html" target="_blank" rel="noreferrer">OWASP: password derivation guidance (not an endorsement of CBC file encryption)</a></li>
+          <li><a href="https://github.com/itsnavin/secure-file-vault#security-model-and-limits" target="_blank" rel="noreferrer">File Vault limits, threat model and interoperability tests</a></li>
+        </ul>
+      </div>
+    </section>
+    <p id="copy-status" class="copy-status" role="status" aria-live="polite">Select command text to copy it, or use its Copy button. Nothing runs in this browser.</p>
+    <footer><a href="./">← Use authenticated browser encryption</a><span>FILE VAULT · LEARN</span></footer>
+  </main>
+</body>
+</html>

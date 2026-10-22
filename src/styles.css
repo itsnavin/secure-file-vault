@@ -230,6 +230,13 @@ main {
   font-size:14px;
   margin:0 0 29px
 }
+.guide-entry {
+  display: inline-block;
+  font-size: 12px;
+  color: var(--green);
+  margin: -12px 0 23px;
+  text-underline-offset: 4px;
+}
 .vault-card {
   background:#fff;
   border:1px solid var(--line);

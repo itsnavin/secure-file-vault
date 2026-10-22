@@ -9,9 +9,17 @@
 3. Click **Encrypt**, then **Download encrypted file**. Save `sealed.sfv` and keep the passphrase separately. **There is no password recovery.** Keep a tested backup.
 4. To recover it, choose **Decrypt**, select the vault, enter the exact original passphrase, and click **Decrypt**. Nothing decrypts merely by selecting/dropping a file. Download recovered bytes explicitly. Text created with Text mode also has an explicit inert preview.
 
-Spaces, case, Unicode normalization and a UTF-8 BOM are significant; passwords are never trimmed or normalized. Invalid/unpaired Unicode surrogates are rejected rather than silently substituted. Passphrases are limited to 1,024 UTF-8 bytes. Successful and worker-failed operations clear passphrase fields. No content is copied to the clipboard. Recovered files may be malicious: download and open deliberately.
+Spaces, case, Unicode normalization and a UTF-8 BOM are significant; passwords are never trimmed or normalized. Invalid/unpaired Unicode surrogates are rejected rather than silently substituted. Passphrases are limited to 1,024 UTF-8 bytes. Successful and worker-failed operations clear passphrase fields. The vault never copies private content to the clipboard; the separate Linux guide can copy public example commands only after a click. Recovered files may be malicious: download and open deliberately.
 
 **Not OpenSSL `enc` compatible.** OpenSSL's `enc` interface does not support GCM. This application uses its own documented authenticated format, not an OpenSSL wrapper. AES-GCM is an established authenticated cipher, not a claim to be the universally "newest" or "best" encryption.
+
+## Linux / OpenSSL learning guide
+
+Open the in-app **[Linux / OpenSSL guide](https://itsnavin.github.io/secure-file-vault/linux.html)** from the vault's introduction. It explains both encryption flows, interactive passphrase prompts, exact file encryption/decryption commands, every command argument, optional Base64, shell quoting, isolated practice files, permissions, backups, version differences and failure cases. Copy buttons copy only the public displayed snippet after an explicit click; no commands are executed by the browser.
+
+**The external terminal example is unauthenticated AES-256-CBC for learning / existing OpenSSL compatibility only.** Its `enc` output cannot be opened by this site's SFV reader; SFV downloads cannot be opened by `openssl enc`. CBC ciphertext can be maliciously modified and still decrypt without an error. Wrong-password errors are not a reliable integrity/password check, and OpenSSL may write partial or garbage plaintext even on failure. Keep important data in an established authenticated format instead. The guide does not introduce an untested CMS certificate workflow or imply that a round trip proves security.
+
+The core commands use `openssl enc -aes-256-cbc -e` (or `-d`) with `-pbkdf2 -iter 600000 -md sha256 -salt`, distinct `-in`/`-out` filenames and no password arguments. Official OpenSSL 3.0 and 3.5 docs were reviewed on **2026-10-22**; neither example uses the newer `-saltlen` flag unavailable in 3.0. On Linux, run `python3 tests/openssl_guide.py` to execute the **actual snippets extracted from the page** in private temporary directories and pseudo-terminals with synthetic public passphrases. It checks interactive encryption confirmation, binary/Base64 round trips, private file permissions, CBC malleability (modified bytes with status 0), and a wrong-passphrase failure that leaves output, without claiming every wrong password will fail. It prints the exact installed OpenSSL version. The guide was locally exercised on Ubuntu 24.04 / OpenSSL **3.0.13 (30 Jan 2024)**; CI repeats it on its own installed Linux version. Patch-level age alone does not establish distribution support status: keep your vendor's package updated.
 
 ## Security model and limits
 
@@ -52,9 +60,11 @@ npm test
 npm run build
 npm run test:browser
 npm audit --audit-level=high
+# Linux only: exercise the exact terminal guide, including CBC failure caveats
+python3 tests/openssl_guide.py
 ```
 
-On Windows PowerShell where script execution is restricted, use `npm.cmd` and `npx.cmd`. `npm run check` combines unit/interoperability tests, build, and Chromium desktop/mobile browser tests. The build copies only `index.html`, `favicon.svg`, and `src/` into `dist/`; there is no transpilation or CDN. Dev-only dependencies and their transitive licenses are locked in `package-lock.json` (Playwright: Apache-2.0; axe-core: MPL-2.0). App code/artwork: MIT.
+On Windows PowerShell where script execution is restricted, use `npm.cmd` and `npx.cmd`. `npm run check` combines unit/interoperability/guide-content tests, build, and Chromium desktop/mobile browser tests. The build copies only `index.html`, `linux.html`, `favicon.svg`, and `src/` into `dist/`; there is no transpilation or CDN. Dev-only dependencies and their transitive licenses are locked in `package-lock.json` (Playwright: Apache-2.0; axe-core: MPL-2.0). App code/artwork: MIT.
 
 Coverage includes both ciphers, binary/Unicode/empty input, randomized salt/nonce uniqueness, mutation of **every byte** of a sample header/ciphertext/tag, wrong passwords, strict KDF/length/input bounds, maximum file size, filename sanitization, NIST AES-GCM known-answer vectors and the RFC 7914 PBKDF2-SHA-256 vector. Node's independent OpenSSL-backed `pbkdf2Sync` / `createCipheriv` / `createDecipheriv` APIs verify real app containers both ways (not just app-to-itself round trips). Fixed synthetic public fixtures are in `tests/fixtures`; `tools/reference.mjs` is the separate reference encoder/decoder. Never reuse its deterministic test salt/nonce outside test vectors.
 
@@ -107,7 +117,7 @@ The reference is a verification aid, not a recommended secret-handling CLI. It h
 
 ## Publishing
 
-The public repository is [itsnavin/secure-file-vault](https://github.com/itsnavin/secure-file-vault). `.github/workflows/pages.yml` uses commit-pinned actions and runs locked installs, unit/reference tests, desktop/mobile Chromium checks, the static build and a high-severity dependency audit. Only successful `main` pushes deploy `dist/` to GitHub Pages; PRs verify without deployment. Enable **Settings > Pages > Source: GitHub Actions**. No user files are committed or uploaded by the app or workflow.
+The public repository is [itsnavin/secure-file-vault](https://github.com/itsnavin/secure-file-vault). `.github/workflows/pages.yml` uses commit-pinned actions and runs locked installs, unit/reference/guide-content tests, desktop/mobile Chromium checks, the exact OpenSSL guide commands on Linux, the static build and a high-severity dependency audit. Only successful `main` pushes deploy `dist/` to GitHub Pages; PRs verify without deployment. After deployment a separate clean Linux job repeats all desktop/mobile browser tests against the actual live URL, including guide navigation/copy/accessibility and real vault downloads. Enable **Settings > Pages > Source: GitHub Actions**. No user files are committed or uploaded by the app or workflow.
 
 ## References
 
