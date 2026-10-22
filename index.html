@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <meta name="description" content="Encrypt files and text in your browser with password-based AES-GCM. No uploads, accounts, or external scripts.">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self'; font-src 'none'; connect-src 'none'; worker-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'; frame-src 'none'; manifest-src 'none'">
+  <meta name="referrer" content="no-referrer">
+  <title>File Vault — Keep it yours.</title>
+  <link rel="icon" href="./favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="./src/styles.css">
+  <script type="module" src="./src/app.js"></script>
+</head>
+<body>
+  <a class="skip" href="#workspace">Skip to vault</a>
+  <div class="shell">
+    <aside class="sidebar">
+      <a class="brand" href="./" aria-label="File Vault home"><span class="brand-icon" aria-hidden="true">▣</span> file vault<span class="brand-dot">.</span></a>
+      <div class="side-middle">
+        <span class="eyebrow light">YOUR DIGITAL SAFE SPACE</span>
+        <p class="sidebar-title">Private files.<br>Peace of mind.</p>
+        <p>Turn your files and words into something only your passphrase can unlock.</p>
+        <div class="vault-art" aria-hidden="true">
+          <div class="art-ring ring-two"></div><div class="art-ring ring-one"></div>
+          <svg viewBox="0 0 160 180" class="lock-art"><rect x="32" y="76" width="96" height="81" rx="24"/><path d="M52 76V54a28 28 0 0 1 56 0v22"/><circle cx="80" cy="112" r="8"/><path d="M80 120v13"/></svg>
+          <span class="art-star star-one">✦</span><span class="art-star star-two">+</span>
+        </div>
+        <div class="local-badge"><span aria-hidden="true">●</span> LOCAL BY DESIGN</div>
+        <p class="side-small">No uploads. No accounts.<br>Your data stays in this browser tab.</p>
+      </div>
+      <a class="source-link" href="https://github.com/itsnavin/secure-file-vault" target="_blank" rel="noreferrer">Open source, not a black box <span aria-hidden="true">↗</span></a>
+    </aside>
+    <main id="workspace">
+      <header class="topbar"><span>YOUR BROWSER. YOUR CONTROL.</span><span class="privacy-pill"><span aria-hidden="true">●</span> No server processing</span></header>
+      <div class="workspace-inner">
+        <div class="intro"><span class="eyebrow">A LITTLE PRIVACY GOES A LONG WAY</span><h1>Keep it yours.</h1><p>A simple home for your sensitive files and thoughts.</p></div>
+        <section class="vault-card" aria-label="Encryption workspace">
+          <div class="mode-tabs" role="tablist" aria-label="Vault action">
+            <button id="encrypt-tab" role="tab" aria-selected="true" aria-controls="vault-panel" tabindex="0"><span aria-hidden="true">↗</span> Encrypt</button>
+            <button id="decrypt-tab" role="tab" aria-selected="false" aria-controls="vault-panel" tabindex="-1"><span aria-hidden="true">↙</span> Decrypt</button>
+          </div>
+          <div id="vault-panel" role="tabpanel" aria-labelledby="encrypt-tab">
+            <div class="card-heading"><h2 id="action-heading">Let’s lock it up.</h2><span class="step-label">01 / INPUT</span></div>
+            <div class="input-switch" role="group" aria-label="Input type">
+              <button id="file-mode" aria-pressed="true">File</button><button id="text-mode" aria-pressed="false">Text</button>
+            </div>
+            <div id="file-area">
+              <label class="drop-zone" id="drop-zone" for="file-input">
+                <svg viewBox="0 0 32 32" aria-hidden="true"><path d="M10 4h9l6 6v17H7V4h3zm9 0v7h6M16 23V14m-4 4 4-4 4 4"/></svg>
+                <strong id="drop-title">Drop a file here</strong><span id="file-description">or <span class="browse">browse your files</span></span>
+                <span id="file-limit" class="file-limit">Any file type · up to 16 MiB</span>
+                <input id="file-input" type="file" aria-label="Choose a file" aria-describedby="file-limit">
+              </label>
+              <div id="file-selection" class="file-selection" hidden><span id="file-name"></span><button id="remove-file" type="button" aria-label="Remove selected file">Remove</button></div>
+            </div>
+            <div id="text-area" hidden><label for="text-input">Your private text</label><textarea id="text-input" rows="5" maxlength="1048576" placeholder="Write or paste something you want to keep private…" spellcheck="false" autocomplete="off" autocapitalize="off"></textarea><span class="field-help">Up to 1 MiB of UTF-8 text. Empty text is supported.</span></div>
+            <div class="settings-row">
+              <div id="cipher-field"><label for="cipher">Encryption algorithm</label><select id="cipher"><option value="256">AES-256-GCM · Default</option><option value="128">AES-128-GCM</option></select></div>
+              <p id="decrypt-algorithm" class="format-note" hidden>The algorithm is read from your vault’s authenticated header. No guessing required.</p>
+              <span class="auth-badge"><span aria-hidden="true">✓</span> Authenticated encryption</span>
+            </div>
+            <div class="card-heading password-heading"><h2>Your passphrase is the key.</h2><span class="step-label">02 / PROTECT</span></div>
+            <div class="password-grid">
+              <div><label for="password">Passphrase</label><div class="password-wrap"><input id="password" type="password" autocomplete="off" spellcheck="false" autocapitalize="off" maxlength="1024" aria-describedby="password-help"><button id="reveal-password" type="button" aria-label="Show passphrase" aria-pressed="false">Show</button></div></div>
+              <div id="confirm-field"><label for="confirm">Confirm passphrase</label><div class="password-wrap"><input id="confirm" type="password" autocomplete="off" spellcheck="false" autocapitalize="off" maxlength="1024"><button id="reveal-confirm" type="button" aria-label="Show confirmation" aria-pressed="false">Show</button></div></div>
+            </div>
+            <p class="field-help" id="password-help">Use a strong, unique passphrase of 12+ characters (up to 1,024 UTF-8 bytes). Spaces and case matter. Forgotten passphrases cannot be recovered.</p>
+            <div class="action-row"><span class="memory-note"><span aria-hidden="true">◇</span> Only in memory. Never uploaded.</span><button class="primary" id="run">Encrypt <span aria-hidden="true">→</span></button></div>
+            <div class="status-row"><p id="status" role="status" aria-live="polite">Ready when you are.</p><button id="cancel" class="text-button" hidden>Cancel</button><button id="clear" class="text-button">Clear all</button></div>
+            <progress id="progress" aria-label="Working" hidden></progress>
+            <p id="error" role="alert" hidden></p>
+            <section id="result" class="result" aria-labelledby="result-title" hidden>
+              <div><span class="eyebrow">READY FOR YOU</span><h3 id="result-title"></h3><p id="result-description"></p></div>
+              <button id="download" class="primary">Download encrypted file</button>
+              <button id="preview-button" class="text-button" hidden>Show decrypted text</button>
+              <pre id="preview" tabindex="0" aria-label="Decrypted text preview" hidden></pre>
+            </section>
+          </div>
+        </section>
+        <div class="trust-grid"><div><span class="trust-icon" aria-hidden="true">⌁</span><h3>Made to stay local</h3><p>Files and passphrases are processed in this tab, not on a server.</p></div><div><span class="trust-icon" aria-hidden="true">◈</span><h3>Protected, not just hidden</h3><p>AES-GCM checks for changes before releasing any decrypted data.</p></div><div><span class="trust-icon" aria-hidden="true">↧</span><h3>Take your vault with you</h3><p>Download your .sfv file. Keep its passphrase separately and safely.</p></div></div>
+        <details class="security-details"><summary>A few things worth knowing</summary><p>This is a project-specific SFV v1 format, not compatible with <code>openssl enc</code>. It uses native WebCrypto, PBKDF2-HMAC-SHA-256 (600,000 iterations), a fresh random salt and nonce, and a 128-bit authentication tag. PBKDF2 is not memory-hard. Authentication is not a signature or proof of identity.</p><p>Maximum input: 16 MiB per file or 1 MiB UTF-8 text. Processing is in memory, not streamed. Cancel discards work; browser cryptographic operations may not be interruptible. Clear removes references and downloads’ object URLs on a best-effort basis, not secure memory erasure or deletion of saved files.</p><p>No telemetry, secret persistence, remote fonts, or external scripts. Hosting still receives normal page requests. A compromised origin, device, browser, or extension can observe secrets. This project has not been independently audited; use established audited local tools for high-risk needs. Decrypted files may be unsafe: download only when intended and open with care.</p><a href="https://github.com/itsnavin/secure-file-vault#readme" target="_blank" rel="noreferrer">Read the format, limits &amp; threat model ↗</a></details>
+        <footer><span>Less sharing. More keeping.</span><span>FILE VAULT · v1</span></footer>
+      </div>
+    </main>
+  </div>
+</body>
+</html>

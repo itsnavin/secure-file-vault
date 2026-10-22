@@ -1,0 +1,19 @@
+{
+  "name": "secure-file-vault",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "license": "MIT",
+  "engines": { "node": ">=22" },
+  "scripts": {
+    "dev": "node tools/serve.mjs",
+    "build": "node tools/build.mjs",
+    "test": "node --test tests/crypto.test.mjs",
+    "test:browser": "playwright test",
+    "check": "npm run test && npm run build && npm run test:browser"
+  },
+  "devDependencies": {
+    "@axe-core/playwright": "^4.10.2",
+    "@playwright/test": "^1.56.0"
+  }
+}
